@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手机扫码枪模拟</title>
+<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+  body { font-family: Arial; text-align:center; padding:20px; }
+  #canvas { border:1px solid #ccc; width: 90%; max-width:400px; }
+  #resultList { margin-top:20px; text-align:left; max-width:400px; margin-left:auto; margin-right:auto; }
+  #resultList li { padding:4px 0; border-bottom:1px solid #eee; }
+  button { margin-top:10px; padding:10px 20px; font-size:16px; }
+</style>
+</head>
+<body>
+
+<h1>手机扫码枪模拟</h1>
+<canvas id="canvas" width="300" height="400"></canvas>
+<div>
+  <button id="startBtn">开始扫描</button>
+  <button id="stopBtn">停止扫描</button>
+</div>
+<ul id="resultList"></ul>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const resultList = document.getElementById('resultList');
+let video, stream, scanning = false;
+const codeReader = new ZXing.BrowserBarcodeReader();
+
+async function startScan() {
+    video = document.createElement('video');
+    video.setAttribute('playsinline', 'true'); // iOS inline
+    video.style.display = 'none';
+    document.body.appendChild(video);
+
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        video.play();
+        scanning = true;
+        scanFrame();
+    } catch(err) {
+        console.error(err);
+        alert("无法访问摄像头，请在 HTTPS 或 localhost 下打开，并允许权限");
+    }
+}
+
+function stopScan() {
+    scanning = false;
+    if(stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+function addResult(text) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    resultList.prepend(li);
+}
+
+function scanFrame() {
+    if(!scanning) return;
+    canvas.width = video.videoWidth || 300;
+    canvas.height = video.videoHeight || 400;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // 二维码扫描
+    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+    if(qrCode) {
+        addResult(qrCode.data);
+    } else {
+        // 条形码扫描
+        codeReader.decodeFromVideoElement(video)
+        .then(result => {
+            if(result) addResult(result.text);
+        }).catch(()=>{});
+    }
+
+    requestAnimationFrame(scanFrame);
+}
+
+document.getElementById('startBtn').addEventListener('click', startScan);
+document.getElementById('stopBtn').addEventListener('click', stopScan);
+</script>
+
+</body>
+</html>
